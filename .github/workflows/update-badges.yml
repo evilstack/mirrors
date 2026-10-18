@@ -9,58 +9,11 @@ jobs:
   update-gist:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch timestamps and update Gist
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run status updater script
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: 'b24a1fa2b005e5fce6fb11e1c6712559'
-        run: |
-          python3 - << 'EOF'
-          import urllib.request
-          import json
-          import os
-          from datetime import datetime, timezone
-
-          def fetch_status(url, label):
-              try:
-                  req = urllib.request.urlopen(url, timeout=10)
-                  ts = int(req.read().decode('utf-8').strip())
-                  date_str = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-                  return {
-                      "schemaVersion": 1,
-                      "label": label,
-                      "message": date_str,
-                      "color": "brightgreen"
-                  }
-              except Exception:
-                  return {
-                      "schemaVersion": 1,
-                      "label": label,
-                      "message": "Update Failed",
-                      "color": "critical"
-                  }
-
-          arch_data = fetch_status("https://pkg.evlstk.dev/archlinux/lastsync", "Arch Mirror")
-          termux_data = fetch_status("https://pkg.evlstk.dev/termux/lastsync", "Termux Mirror")
-
-          payload = {
-              "files": {
-                  "arch-status.json": {"content": json.dumps(arch_data)},
-                  "termux-status.json": {"content": json.dumps(termux_data)}
-              }
-          }
-
-          req = urllib.request.Request(
-              f"https://api.github.com/gists/{os.environ['GIST_ID']}",
-              data=json.dumps(payload).encode('utf-8'),
-              headers={
-                  "Authorization": f"Bearer {os.environ['GIST_TOKEN']}",
-                  "Accept": "application/vnd.github+json",
-                  "Content-Type": "application/json",
-                  "User-Agent": "Mirror-Badge-Updater"
-              },
-              method="PATCH"
-          }
-
-          with urllib.request.urlopen(req) as resp:
-              print(f"Gist updated successfully: status {resp.status}")
-          EOF
+        run: python3 .github/update_badges.py
