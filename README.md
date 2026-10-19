@@ -1,6 +1,5 @@
-[![Arch Mirror Status](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/evilstack/b24a1fa2b005e5fce6fb11e1c6712559/raw/arch-status.json)](https://pkg.evlstk.dev)
-
-[![Termux Mirror Status](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/evilstack/b24a1fa2b005e5fce6fb11e1c6712559/raw/termux-status.json)](https://pkg.evlstk.dev)
+![Arch Linux last sync](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/evilstack/b24a1fa2b005e5fce6fb11e1c6712559/raw/arch-status.json)
+![Termux last sync](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/evilstack/b24a1fa2b005e5fce6fb11e1c6712559/raw/termux-status.json)
 
 # Mirrors
 
