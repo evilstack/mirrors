@@ -1,19 +1,98 @@
-name: Update Mirror Badges
+# .github/workflows/update-badges.yml
+#
+# Reads /archlinux/lastsync and /termux/lastsync from the mirror and writes
+# two shields.io "endpoint" badge files into a gist.
+#
+# One-time setup (repo Settings -> Secrets and variables -> Actions):
+#   Variable  MIRROR_BASE_URL  e.g. https://mirror.example.com  (no trailing slash)
+#   Secret    GIST_TOKEN       classic personal access token with ONLY the
+#                              "gist" scope, created by the gist's owner.
+
+name: Update mirror status badges
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    # GitHub may delay scheduled runs by several minutes under load.
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
-jobs:
-  update-gist:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+# The job authenticates with GIST_TOKEN, so it needs no repository access.
+permissions: {}
 
-      - name: Run status updater script
+concurrency:
+  group: update-badges
+  cancel-in-progress: false
+
+env:
+  GIST_ID: b24a1fa2b005e5fce6fb11e1c6712559
+  MIRROR_BASE_URL: ${{ vars.MIRROR_BASE_URL }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Update badges in the gist
+        shell: bash
         env:
-          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: 'b24a1fa2b005e5fce6fb11e1c6712559'
-        run: python3 .github/update_badges.py
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          base="${MIRROR_BASE_URL%/}"
+          if [ -z "$base" ]; then
+            echo "::error::Set the MIRROR_BASE_URL repository variable (e.g. https://mirror.site.tld)"
+            exit 1
+          fi
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Set the GIST_TOKEN repository secret (classic PAT with the gist scope)"
+            exit 1
+          fi
+
+          now=$(date +%s)
+
+          # badge LOGO PATH GREEN_MAX_SECONDS YELLOW_MAX_SECONDS
+          # Prints one compact shields.io endpoint JSON object.
+          # The message is an absolute UTC time, so it stays correct between runs.
+          badge() {
+            local logo=$1 path=$2 green=$3 yellow=$4
+            local ts="" msg color age
+            ts=$(curl -fsS --max-time 20 --retry 3 --retry-delay 5 \
+                   "$base/$path/lastsync" 2>/dev/null | tr -d '[:space:]') || ts=""
+            if [[ "$ts" =~ ^[0-9]{9,11}$ ]]; then
+              age=$(( now - ts ))
+              if (( age < 0 )); then age=0; fi
+              msg=$(date -u -d "@$ts" '+%Y-%m-%d %H:%M UTC')
+              if   (( age <= green  )); then color=brightgreen
+              elif (( age <= yellow )); then color=yellow
+              else                           color=red
+              fi
+            else
+              msg="unreachable"
+              color=red
+            fi
+            jq -cn --arg logo "$logo" --arg msg "$msg" --arg color "$color" \
+              '{schemaVersion: 1, namedLogo: $logo, label: "Last sync", message: $msg, color: $color}'
+          }
+
+          # Arch syncs hourly: green <= 3 h, yellow <= 12 h, otherwise red.
+          # Termux syncs every 2 h: green <= 6 h, yellow <= 24 h, otherwise red.
+          arch=$(badge archlinux archlinux 10800 43200)
+          termux=$(badge gnometerminal termux 21600 86400)
+          echo "arch:   $arch"
+          echo "termux: $termux"
+
+          # Skip the write if nothing changed.
+          current=$(gh api "/gists/$GIST_ID")
+          cur_arch=$(jq -cS '(.files["arch-status.json"].content // "{}") | fromjson' <<<"$current")
+          cur_termux=$(jq -cS '(.files["termux-status.json"].content // "{}") | fromjson' <<<"$current")
+          if [ "$cur_arch" = "$(jq -cS . <<<"$arch")" ] && \
+             [ "$cur_termux" = "$(jq -cS . <<<"$termux")" ]; then
+            echo "Badges unchanged; nothing to update."
+            exit 0
+          fi
+
+          body=$(jq -n --arg a "$arch" --arg t "$termux" \
+            '{files: {"arch-status.json": {content: $a}, "termux-status.json": {content: $t}}}')
+          gh api --method PATCH "/gists/$GIST_ID" --input - <<<"$body" >/dev/null
+          echo "Gist updated."
