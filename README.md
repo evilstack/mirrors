@@ -16,7 +16,12 @@ This mirror can be used by including it in `/etc/pacman.d/mirrorlist`
 ```
 Server = http://pkg.evlstk.dev/archlinux/$repo/os/$arch
 ```
-Both http and https are available.
+<br>
+or
+<br>
+```
+Server = https://pkg.evlstk.dev/archlinux/$repo/os/$arch
+```
 
 <br>
 
@@ -29,7 +34,14 @@ deb http://pkg.evlstk.dev/termux/termux-main stable main
 deb http://pkg.evlstk.dev/termux/termux-root root stable
 deb http://pkg.evlstk.dev/termux/termux-x11 x11 main
 ```
-Both http and https are available.
+<br>
+or
+<br>
+```
+deb https://pkg.evlstk.dev/termux/termux-main stable main
+deb https://pkg.evlstk.dev/termux/termux-root root stable
+deb https://pkg.evlstk.dev/termux/termux-x11 x11 main
+```
 
 <br>
 
